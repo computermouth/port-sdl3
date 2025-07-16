@@ -1,0 +1,6 @@
+glslangValidator -V game.vert.glsl -o game.vert.glsl.spv
+glslangValidator -V game.frag.glsl -o game.frag.glsl.spv
+
+SAN_FLAGS="-fsanitize=address -fsanitize=undefined -fno-sanitize-recover=all -fsanitize=float-divide-by-zero -fsanitize=float-cast-overflow -fno-sanitize=null -fno-sanitize=alignment"
+
+gcc $SAN_FLAGS -std=c11 -g -Wall -I/usr/local/include -L/usr/local/lib -Wextra main.c -lSDL3 -lm && ./a.out

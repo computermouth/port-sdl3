@@ -1,0 +1,18 @@
+#version 310 es
+
+precision highp float;
+
+// input from vert
+//
+// uv coords
+layout(location = 0) in vec2 vu;
+
+// input from uniforms
+layout(binding = 0) uniform sampler2D s;
+
+// output
+layout(location = 0) out vec4 fragColor;
+
+void main(void) {
+    fragColor = texture(s, vu);
+}
