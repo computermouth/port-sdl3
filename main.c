@@ -9,7 +9,7 @@
 typedef struct GameVertInput {
     float p[3];
     float n[3];
-    float t[2];
+    float u[2];
 } GameVertInput;
 
 int main() {
@@ -81,8 +81,8 @@ int main() {
         .entrypoint = "main",
         .format = SDL_GPU_SHADERFORMAT_SPIRV,
         .stage = SDL_GPU_SHADERSTAGE_FRAGMENT,
-        .num_samplers = 0,
-        .num_uniform_buffers = 0,
+        .num_samplers = 0, // todo, sampler buffer
+        .num_uniform_buffers = 1,
         .num_storage_buffers = 0,
         .num_storage_textures = 0,
     };
@@ -156,7 +156,7 @@ int main() {
 		device,
 		&(SDL_GPUBufferCreateInfo) {
 			.usage = SDL_GPU_BUFFERUSAGE_VERTEX,
-			.size = sizeof(GameVertInput) * 3
+			.size = sizeof(GameVertInput) * 6
 		}
 	);
 
@@ -165,7 +165,7 @@ int main() {
 		device,
 		&(SDL_GPUTransferBufferCreateInfo) {
 			.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
-			.size = sizeof(GameVertInput) * 3
+			.size = sizeof(GameVertInput) * 6
 		}
 	);
 
@@ -175,22 +175,36 @@ int main() {
 		false
 	);
 
-	transferData[2] = (GameVertInput) {
+	transferData[0] = (GameVertInput) {
 		.p  = { -1, -1, 0 },
 		.n  = { 0, 0, 0 },
-		.t  = { 0, 0 },
+		.u  = { 0, 1 },
 	};
-
 	transferData[1] = (GameVertInput) {
 		.p  = { 1, -1, 0 },
 		.n  = { 0, 0, 0 },
-		.t  = { 0, 0 },
+		.u  = { 0, 1 },
 	};
-
-	transferData[0] = (GameVertInput) {
+	transferData[2] = (GameVertInput) {
 		.p  = { 0, 1, 0 },
 		.n  = { 0, 0, 0 },
-		.t  = { 0, 0 },
+		.u  = { 0, 1 },
+	};
+
+	transferData[3] = (GameVertInput) {
+		.p  = { -1, -1, 0 },
+		.n  = { 0, 0, 0 },
+		.u  = { 1, 0 },
+	};
+	transferData[4] = (GameVertInput) {
+		.p  = { 1, -1, 0 },
+		.n  = { 0, 0, 0 },
+		.u  = { 1, 0 },
+	};
+	transferData[5] = (GameVertInput) {
+		.p  = { 0, 1, 0 },
+		.n  = { 0, 0, 0 },
+		.u  = { 1, 0 },
 	};
 	// Upload the transfer data to the vertex buffer
 	SDL_GPUCommandBuffer* uploadCmdBuf = SDL_AcquireGPUCommandBuffer(device);
@@ -205,7 +219,7 @@ int main() {
 		&(SDL_GPUBufferRegion) {
 			.buffer = vertex_buffer,
 			.offset = 0,
-			.size = sizeof(GameVertInput) * 3
+			.size = sizeof(GameVertInput) * 6
 		},
 		false
 	);
@@ -263,22 +277,41 @@ int main() {
 
         // this probably needs to be packed
         // if its ever not just floats
-        static Load load = {
-            .camera_pos = { 0, 0, -5, 16.0f/9.0f },
-            .model_mat = { 1.0f, 0.0f, 0.0f, 0.0f,
-                      0.0f, 1.0f, 0.0f, 0.0f,
-                      0.0f, 0.0f, 1.0f, 0.0f,
+
+        float c[4] = { 0, 0, -5, 16.0f/9.0f };
+
+        static float mouse_x = 0.0f;
+        mouse_x += 0.05f;
+
+        Load loads[2] = {
+            {
+            .camera_pos = {c[0], c[1], c[2], c[3]},
+            .model_mat = { 2.0f, 0.0f, 0.0f, 0.0f,
+                      0.0f, 2.0f, 0.0f, 0.0f,
+                      0.0f, 0.0f, 2.0f, 0.0f,
                       0.0f, 0.0f, 0.0f, 1.0f },
-            .mouse = { 0, 0 }
+            .mouse = { mouse_x, 0 }
+            },
+            {
+            .camera_pos = {c[0], c[1], c[2], c[3]},
+            .model_mat = { 2.0f, 0.0f, 0.0f, 0.0f,
+                      0.0f, 2.0f, 0.0f, 0.0f,
+                      0.0f, 0.0f, 2.0f, 0.0f,
+                      0.0f, 0.0f, -10.0f, 1.0f },
+            .mouse = { mouse_x, 0 }
+            },
         };
-
-        load.mouse[0] += 0.05f;
-
-        SDL_PushGPUVertexUniformData(cmdbuf, 0, &load, sizeof(Load));
 
         SDL_BindGPUGraphicsPipeline(renderPass, pipeline);
         SDL_BindGPUVertexBuffers(renderPass, 0, &(SDL_GPUBufferBinding){ .buffer = vertex_buffer, .offset = 0 }, 1);
+
+        // draw first triangle
+        SDL_PushGPUVertexUniformData(cmdbuf, 0, &loads[0], sizeof(Load));
         SDL_DrawGPUPrimitives(renderPass, 3, 1, 0, 0);
+
+        // draw second triangle
+        SDL_PushGPUVertexUniformData(cmdbuf, 0, &loads[1], sizeof(Load));
+        SDL_DrawGPUPrimitives(renderPass, 3, 1, 3, 0);
 
         SDL_EndGPURenderPass(renderPass);
 

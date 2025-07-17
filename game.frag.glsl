@@ -8,11 +8,11 @@ precision mediump float;
 layout(location = 0) in vec2 vu;
 
 // input from uniforms
-layout(binding = 0) uniform sampler2D s;
+// layout(binding = 0) uniform sampler2D s;
 
 // output
 layout(location = 0) out vec4 fragColor;
 
 void main(void) {
-    fragColor = vec4(vu, 1,1);
+    fragColor = vec4(vu, 0,1);
 }
