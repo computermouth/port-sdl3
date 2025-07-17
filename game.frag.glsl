@@ -14,5 +14,5 @@ layout(binding = 0) uniform sampler2D s;
 layout(location = 0) out vec4 fragColor;
 
 void main(void) {
-    fragColor = vec4(1);
+    fragColor = vec4(vu, 1,1);
 }

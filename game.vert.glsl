@@ -9,7 +9,8 @@ layout(location = 0) in vec3 p;
 layout(location = 1) in vec3 n;
 layout(location = 2) in vec2 u;
 
-layout(set = 0, binding = 0) uniform UBO {
+// I don't know why set = 1, but it needs to.
+layout(set = 1, binding = 0) uniform UBO {
     // camera pos (x, y, z) and aspect ratio (w)
     vec4 camera_pos;
 
@@ -82,11 +83,29 @@ mat_comp decomp_mat(mat4 matrix) {
 
 void main(void) {
 
+    // pass to frag
     vu = u;
+
+    // decompose the model matrix
+    mat_comp model = decomp_mat(model_mat);
+
+    // Mix vertex positions, rotate using mat3, and add the translation
+    vec3 vp_in = model.rotation * (model.scale * p) + model.translation;
+
+    // We use a FOV of 90, so the matrix[0] and [5] are conveniently 1.
+    // (1 / Math.tan((90/180) * Math.PI / 2) === 1)
+    mat4 projection = mat4(
+        1, 0, 0, 0,
+        0, camera_pos.w, 0, 0,
+        0, 0, 1, 1,
+        0, 0, -2, 0
+    );
 
     // Final vertex position is transformed by the projection matrix,
     // rotated around mouse yaw/pitch and offset by the camera position
-    // We use a FOV of 90, so the matrix[0] and [5] are conveniently 1.
-    // (1 / Math.tan((90/180) * Math.PI / 2) === 1)
-    gl_Position = vec4(p, 1);
+    gl_Position = 
+        projection * 
+        rx(-mouse.y) * ry(-mouse.x) *
+        vec4(vp_in - camera_pos.xyz, 1.0);
+
 }

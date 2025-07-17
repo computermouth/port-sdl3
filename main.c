@@ -29,7 +29,7 @@ int main() {
         return -1;
     }
 
-    SDL_Window * window = SDL_CreateWindow("clear", 640, 480, SDL_WINDOW_RESIZABLE);
+    SDL_Window * window = SDL_CreateWindow("clear", 800, 450, SDL_WINDOW_RESIZABLE);
     if (window == NULL) {
         SDL_Log("CreateWindow failed: %s", SDL_GetError());
         return -1;
@@ -255,40 +255,26 @@ int main() {
 
         SDL_GPURenderPass* renderPass = SDL_BeginGPURenderPass(cmdbuf, &colorTargetInfo, 1, NULL);
 
-        size_t sz =
-            // vec4 camera_pos;
-            sizeof(float) * 4 +
-            // mat4 model_mat;
-            sizeof(float) * 4 * 4 +
-            // vec2 mouse;
-            sizeof(float) * 2;
+        typedef struct Load {
+            float camera_pos[4];
+            float model_mat[16];
+            float mouse[2];
+        } Load;
 
-        // wasteful length
-        uint8_t data[128] = { 0 };
-        uint8_t *cursor = data;
-
-        float camera_pos[4] = { -5, 0, 0, 1 };
-        size_t camera_pos_sz = sizeof(float) * 4;
-        memcpy(cursor, camera_pos, camera_pos_sz);
-        cursor += camera_pos_sz;
-
-        float model_mat[16] = {
-            1, 0, 0, 0,
-            0, 1, 0, 0,
-            0, 0, 1, 0,
-            0, 0, 0, 1
+        // this probably needs to be packed
+        // if its ever not just floats
+        static Load load = {
+            .camera_pos = { 0, 0, -5, 16.0f/9.0f },
+            .model_mat = { 1.0f, 0.0f, 0.0f, 0.0f,
+                      0.0f, 1.0f, 0.0f, 0.0f,
+                      0.0f, 0.0f, 1.0f, 0.0f,
+                      0.0f, 0.0f, 0.0f, 1.0f },
+            .mouse = { 0, 0 }
         };
-        size_t model_mat_sz = sizeof(float) * 4 * 4;
-        memcpy(cursor, model_mat, sizeof(float) * 4 * 4);
-        cursor += model_mat_sz;
 
-        static float mouse[2] = { 0, 0 };
-        mouse[1] += 0.01f;
-        size_t mouse_sz = sizeof(float) * 2;
-        memcpy(cursor, mouse, mouse_sz);
+        load.mouse[0] += 0.05f;
 
-
-        SDL_PushGPUVertexUniformData(cmdbuf, 0, data, sz);
+        SDL_PushGPUVertexUniformData(cmdbuf, 0, &load, sizeof(Load));
 
         SDL_BindGPUGraphicsPipeline(renderPass, pipeline);
         SDL_BindGPUVertexBuffers(renderPass, 0, &(SDL_GPUBufferBinding){ .buffer = vertex_buffer, .offset = 0 }, 1);
