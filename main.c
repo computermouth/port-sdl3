@@ -156,7 +156,7 @@ int main() {
 		device,
 		&(SDL_GPUBufferCreateInfo) {
 			.usage = SDL_GPU_BUFFERUSAGE_VERTEX,
-			.size = sizeof(GameVertInput)
+			.size = sizeof(GameVertInput) * 3
 		}
 	);
 
@@ -165,7 +165,7 @@ int main() {
 		device,
 		&(SDL_GPUTransferBufferCreateInfo) {
 			.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
-			.size = sizeof(GameVertInput)
+			.size = sizeof(GameVertInput) * 3
 		}
 	);
 
@@ -175,8 +175,20 @@ int main() {
 		false
 	);
 
+	transferData[2] = (GameVertInput) {
+		.p  = { -1, -1, 0 },
+		.n  = { 0, 0, 0 },
+		.t  = { 0, 0 },
+	};
+
+	transferData[1] = (GameVertInput) {
+		.p  = { 1, -1, 0 },
+		.n  = { 0, 0, 0 },
+		.t  = { 0, 0 },
+	};
+
 	transferData[0] = (GameVertInput) {
-		.p  = { 0, 0, 0 },
+		.p  = { 0, 1, 0 },
 		.n  = { 0, 0, 0 },
 		.t  = { 0, 0 },
 	};
@@ -193,7 +205,7 @@ int main() {
 		&(SDL_GPUBufferRegion) {
 			.buffer = vertex_buffer,
 			.offset = 0,
-			.size = sizeof(GameVertInput)
+			.size = sizeof(GameVertInput) * 3
 		},
 		false
 	);
@@ -253,8 +265,29 @@ int main() {
 
         // wasteful length
         uint8_t data[128] = { 0 };
-        // memcpy camera_pos &data + 0
-        // memcpy model_mat &data + sizeof(float) * 4, etc
+        uint8_t *cursor = data;
+
+        float camera_pos[4] = { -5, 0, 0, 1 };
+        size_t camera_pos_sz = sizeof(float) * 4;
+        memcpy(cursor, camera_pos, camera_pos_sz);
+        cursor += camera_pos_sz;
+
+        float model_mat[16] = {
+            1, 0, 0, 0,
+            0, 1, 0, 0,
+            0, 0, 1, 0,
+            0, 0, 0, 1
+        };
+        size_t model_mat_sz = sizeof(float) * 4 * 4;
+        memcpy(cursor, model_mat, sizeof(float) * 4 * 4);
+        cursor += model_mat_sz;
+
+        static float mouse[2] = { 0, 0 };
+        mouse[1] += 0.01f;
+        size_t mouse_sz = sizeof(float) * 2;
+        memcpy(cursor, mouse, mouse_sz);
+
+
         SDL_PushGPUVertexUniformData(cmdbuf, 0, data, sz);
 
         SDL_BindGPUGraphicsPipeline(renderPass, pipeline);

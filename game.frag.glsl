@@ -1,6 +1,6 @@
 #version 310 es
 
-precision highp float;
+precision mediump float;
 
 // input from vert
 //
@@ -14,5 +14,5 @@ layout(binding = 0) uniform sampler2D s;
 layout(location = 0) out vec4 fragColor;
 
 void main(void) {
-    fragColor = texture(s, vu);
+    fragColor = vec4(1);
 }

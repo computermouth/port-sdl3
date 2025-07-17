@@ -1,6 +1,6 @@
 #version 310 es
 
-precision highp float;
+precision mediump float;
 
 // input
 //
@@ -82,9 +82,11 @@ mat_comp decomp_mat(mat4 matrix) {
 
 void main(void) {
 
+    vu = u;
+
     // Final vertex position is transformed by the projection matrix,
     // rotated around mouse yaw/pitch and offset by the camera position
     // We use a FOV of 90, so the matrix[0] and [5] are conveniently 1.
     // (1 / Math.tan((90/180) * Math.PI / 2) === 1)
-    gl_Position = vec4(0);
+    gl_Position = vec4(p, 1);
 }
