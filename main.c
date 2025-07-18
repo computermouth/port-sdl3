@@ -2,6 +2,7 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_gpu.h>
 #include <SDL3/SDL_stdinc.h>
+#include <assert.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -34,6 +35,27 @@ int main() {
         SDL_Log("CreateWindow failed: %s", SDL_GetError());
         return -1;
     }
+
+    SDL_Surface * ravioli_surface = SDL_LoadBMP("ravioli.bmp");
+	if (ravioli_surface == NULL)
+	{
+		SDL_Log("Failed to load BMP: %s", SDL_GetError());
+		return -1;
+	}
+
+	if (ravioli_surface->format != SDL_PIXELFORMAT_ABGR8888)
+	{
+		SDL_Surface *next = SDL_ConvertSurface(ravioli_surface, SDL_PIXELFORMAT_ABGR8888);
+		SDL_DestroySurface(ravioli_surface);
+		ravioli_surface = next;
+	}
+
+	if (ravioli_surface == NULL)
+	{
+		SDL_Log("Failed to load BMP: %s", SDL_GetError());
+		return -1;
+	}
+
 
     if (!SDL_ClaimWindowForGPUDevice(device, window)) {
         SDL_Log("GPUClaimWindow failed");
@@ -311,6 +333,7 @@ int main() {
 
         // draw second triangle
         SDL_PushGPUVertexUniformData(cmdbuf, 0, &loads[1], sizeof(Load));
+        // first == 3???
         SDL_DrawGPUPrimitives(renderPass, 3, 1, 3, 0);
 
         SDL_EndGPURenderPass(renderPass);
