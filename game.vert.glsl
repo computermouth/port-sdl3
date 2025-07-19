@@ -9,7 +9,8 @@ layout(location = 0) in vec3 p;
 layout(location = 1) in vec3 n;
 layout(location = 2) in vec2 u;
 
-// I don't know why set = 1, but it needs to.
+// set = 1 for vertex uniform buffers
+// https://wiki.libsdl.org/SDL3/SDL_CreateGPUShader
 layout(set = 1, binding = 0) uniform UBO {
     // camera pos (x, y, z) and aspect ratio (w)
     vec4 camera_pos;

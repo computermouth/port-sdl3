@@ -13,6 +13,38 @@ typedef struct GameVertInput {
     float u[2];
 } GameVertInput;
 
+void set_matrix_identity(float *mat)
+{
+	mat[0] = 1; mat[1] = 0; mat[2] = 0; mat[3] = 0;
+	mat[4] = 0; mat[5] = 1; mat[6] = 0; mat[7] = 0;
+	mat[8] = 0; mat[9] = 0; mat[10] = 1; mat[11] = 0;
+	mat[12] = 0; mat[13] = 0; mat[14] = 0; mat[15] = 1;
+}
+
+void rotate_matrix_z(float *mat, float radians)
+{
+	float c = SDL_cosf(radians);
+	float s = SDL_sinf(radians);
+
+	mat[0] = c;  mat[1] = s;  mat[2] = 0;  mat[3] = 0;
+	mat[4] = -s; mat[5] = c;  mat[6] = 0;  mat[7] = 0;
+	mat[8] = 0;  mat[9] = 0;  mat[10] = 1; mat[11] = 0;
+	mat[12] = 0; mat[13] = 0; mat[14] = 0; mat[15] = 1;
+}
+
+void matrix_multiply(float *result, const float *a, const float *b)
+{
+	for (int i = 0; i < 4; ++i) {
+		for (int j = 0; j < 4; ++j) {
+			result[i * 4 + j] =
+				a[i * 4 + 0] * b[0 * 4 + j] +
+				a[i * 4 + 1] * b[1 * 4 + j] +
+				a[i * 4 + 2] * b[2 * 4 + j] +
+				a[i * 4 + 3] * b[3 * 4 + j];
+		}
+	}
+}
+
 int main() {
 
     if (!SDL_Init(SDL_INIT_VIDEO)) {
@@ -103,7 +135,7 @@ int main() {
         .entrypoint = "main",
         .format = SDL_GPU_SHADERFORMAT_SPIRV,
         .stage = SDL_GPU_SHADERSTAGE_FRAGMENT,
-        .num_samplers = 0, // todo, sampler buffer
+        .num_samplers = 1,
         .num_uniform_buffers = 1,
         .num_storage_buffers = 0,
         .num_storage_textures = 0,
@@ -191,6 +223,53 @@ int main() {
 		}
 	);
 
+	SDL_GPUSampler* sampler = SDL_CreateGPUSampler(
+		device,
+		&(SDL_GPUSamplerCreateInfo) {
+		.min_filter = SDL_GPU_FILTER_NEAREST,
+		.mag_filter = SDL_GPU_FILTER_NEAREST,
+		.mipmap_mode = SDL_GPU_SAMPLERMIPMAPMODE_NEAREST,
+		.address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
+		.address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
+		.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
+		}
+	);
+
+	SDL_GPUTexture* texture = SDL_CreateGPUTexture(
+		device,
+		&(SDL_GPUTextureCreateInfo) {
+			.type = SDL_GPU_TEXTURETYPE_2D,
+			.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
+			.width = ravioli_surface->w,
+			.height = ravioli_surface->h,
+			.layer_count_or_depth = 1,
+			.num_levels = 1,
+			.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER
+		}
+	);
+	SDL_SetGPUTextureName(
+		device,
+		texture,
+		"ravioli"
+	);
+
+	// Set up texture data
+	SDL_GPUTransferBuffer* textureTransferBuffer = SDL_CreateGPUTransferBuffer(
+		device,
+		&(SDL_GPUTransferBufferCreateInfo) {
+			.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+			.size = ravioli_surface->w * ravioli_surface->h * 4
+		}
+	);
+
+	Uint8* textureTransferPtr = SDL_MapGPUTransferBuffer(
+		device,
+		textureTransferBuffer,
+		false
+	);
+	SDL_memcpy(textureTransferPtr, ravioli_surface->pixels, ravioli_surface->w * ravioli_surface->h * 4);
+	SDL_UnmapGPUTransferBuffer(device, textureTransferBuffer);
+
 	GameVertInput* transferData = SDL_MapGPUTransferBuffer(
 		device,
 		transferBuffer,
@@ -205,28 +284,28 @@ int main() {
 	transferData[1] = (GameVertInput) {
 		.p  = { 1, -1, 0 },
 		.n  = { 0, 0, 0 },
-		.u  = { 0, 1 },
+		.u  = { 1, 0 },
 	};
 	transferData[2] = (GameVertInput) {
 		.p  = { 0, 1, 0 },
 		.n  = { 0, 0, 0 },
-		.u  = { 0, 1 },
+		.u  = { 1, 1 },
 	};
 
 	transferData[3] = (GameVertInput) {
 		.p  = { -1, -1, 0 },
 		.n  = { 0, 0, 0 },
-		.u  = { 1, 0 },
+		.u  = { 1, 1 },
 	};
 	transferData[4] = (GameVertInput) {
 		.p  = { 1, -1, 0 },
 		.n  = { 0, 0, 0 },
-		.u  = { 1, 0 },
+		.u  = { 0, 1 },
 	};
 	transferData[5] = (GameVertInput) {
 		.p  = { 0, 1, 0 },
 		.n  = { 0, 0, 0 },
-		.u  = { 1, 0 },
+		.u  = { 0, 0 },
 	};
 	// Upload the transfer data to the vertex buffer
 	SDL_GPUCommandBuffer* uploadCmdBuf = SDL_AcquireGPUCommandBuffer(device);
@@ -246,9 +325,25 @@ int main() {
 		false
 	);
 
+	SDL_UploadToGPUTexture(
+		copyPass,
+		&(SDL_GPUTextureTransferInfo) {
+			.transfer_buffer = textureTransferBuffer,
+			.offset = 0, /* Zeros out the rest */
+		},
+		&(SDL_GPUTextureRegion){
+			.texture = texture,
+			.w = ravioli_surface->w,
+			.h = ravioli_surface->h,
+			.d = 1,
+		},
+		false
+	);
+
 	SDL_EndGPUCopyPass(copyPass);
 	SDL_SubmitGPUCommandBuffer(uploadCmdBuf);
 	SDL_ReleaseGPUTransferBuffer(device, transferBuffer);
+	SDL_ReleaseGPUTransferBuffer(device, textureTransferBuffer);
 
     bool quit = false;
 
@@ -328,13 +423,14 @@ int main() {
         SDL_BindGPUVertexBuffers(renderPass, 0, &(SDL_GPUBufferBinding){ .buffer = vertex_buffer, .offset = 0 }, 1);
 
         // draw first triangle
-        SDL_PushGPUVertexUniformData(cmdbuf, 0, &loads[0], sizeof(Load));
-        SDL_DrawGPUPrimitives(renderPass, 3, 1, 0, 0);
+		SDL_PushGPUVertexUniformData(cmdbuf, 0, &loads[0], sizeof(Load));
+		SDL_BindGPUFragmentSamplers(renderPass, 0, &(SDL_GPUTextureSamplerBinding){ .texture = texture, .sampler = sampler }, 1);
+		SDL_DrawGPUPrimitives(renderPass, 3, 1, 0, 0);
 
         // draw second triangle
         SDL_PushGPUVertexUniformData(cmdbuf, 0, &loads[1], sizeof(Load));
-        // first == 3???
-        SDL_DrawGPUPrimitives(renderPass, 3, 1, 3, 0);
+        // SDL_BindGPUFragmentSamplers(renderPass, 0, &(SDL_GPUTextureSamplerBinding){ .texture = texture, .sampler = sampler }, 1);
+		SDL_DrawGPUPrimitives(renderPass, 3, 1, 3, 0);
 
         SDL_EndGPURenderPass(renderPass);
 
