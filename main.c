@@ -2,6 +2,7 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_gpu.h>
 #include <SDL3/SDL_stdinc.h>
+#include <SDL3/SDL_surface.h>
 #include <assert.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -12,38 +13,6 @@ typedef struct GameVertInput {
     float n[3];
     float u[2];
 } GameVertInput;
-
-void set_matrix_identity(float *mat)
-{
-	mat[0] = 1; mat[1] = 0; mat[2] = 0; mat[3] = 0;
-	mat[4] = 0; mat[5] = 1; mat[6] = 0; mat[7] = 0;
-	mat[8] = 0; mat[9] = 0; mat[10] = 1; mat[11] = 0;
-	mat[12] = 0; mat[13] = 0; mat[14] = 0; mat[15] = 1;
-}
-
-void rotate_matrix_z(float *mat, float radians)
-{
-	float c = SDL_cosf(radians);
-	float s = SDL_sinf(radians);
-
-	mat[0] = c;  mat[1] = s;  mat[2] = 0;  mat[3] = 0;
-	mat[4] = -s; mat[5] = c;  mat[6] = 0;  mat[7] = 0;
-	mat[8] = 0;  mat[9] = 0;  mat[10] = 1; mat[11] = 0;
-	mat[12] = 0; mat[13] = 0; mat[14] = 0; mat[15] = 1;
-}
-
-void matrix_multiply(float *result, const float *a, const float *b)
-{
-	for (int i = 0; i < 4; ++i) {
-		for (int j = 0; j < 4; ++j) {
-			result[i * 4 + j] =
-				a[i * 4 + 0] * b[0 * 4 + j] +
-				a[i * 4 + 1] * b[1 * 4 + j] +
-				a[i * 4 + 2] * b[2 * 4 + j] +
-				a[i * 4 + 3] * b[3 * 4 + j];
-		}
-	}
-}
 
 int main() {
 
@@ -205,23 +174,7 @@ int main() {
 	SDL_ReleaseGPUShader(device, vert_shader);
 	SDL_ReleaseGPUShader(device, frag_shader);
 
-	// Create the vertex buffer
-	SDL_GPUBuffer * vertex_buffer = SDL_CreateGPUBuffer(
-		device,
-		&(SDL_GPUBufferCreateInfo) {
-			.usage = SDL_GPU_BUFFERUSAGE_VERTEX,
-			.size = sizeof(GameVertInput) * 6
-		}
-	);
-
-	// To get data into the vertex buffer, we have to use a transfer buffer
-	SDL_GPUTransferBuffer* transferBuffer = SDL_CreateGPUTransferBuffer(
-		device,
-		&(SDL_GPUTransferBufferCreateInfo) {
-			.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
-			.size = sizeof(GameVertInput) * 6
-		}
-	);
+	// START TEXTURE
 
 	SDL_GPUSampler* sampler = SDL_CreateGPUSampler(
 		device,
@@ -270,6 +223,28 @@ int main() {
 	SDL_memcpy(textureTransferPtr, ravioli_surface->pixels, ravioli_surface->w * ravioli_surface->h * 4);
 	SDL_UnmapGPUTransferBuffer(device, textureTransferBuffer);
 
+	// END TEXTURE
+
+	// START VERTEX
+
+	// Create the vertex buffer
+	SDL_GPUBuffer * vertex_buffer = SDL_CreateGPUBuffer(
+		device,
+		&(SDL_GPUBufferCreateInfo) {
+			.usage = SDL_GPU_BUFFERUSAGE_VERTEX,
+			.size = sizeof(GameVertInput) * 4
+		}
+	);
+
+	// To get data into the vertex buffer, we have to use a transfer buffer
+	SDL_GPUTransferBuffer* transferBuffer = SDL_CreateGPUTransferBuffer(
+		device,
+		&(SDL_GPUTransferBufferCreateInfo) {
+			.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+			.size = sizeof(GameVertInput) * 4
+		}
+	);
+
 	GameVertInput* transferData = SDL_MapGPUTransferBuffer(
 		device,
 		transferBuffer,
@@ -291,39 +266,56 @@ int main() {
 		.n  = { 0, 0, 0 },
 		.u  = { 1, 1 },
 	};
-
 	transferData[3] = (GameVertInput) {
 		.p  = { -1, -1, 0 },
 		.n  = { 0, 0, 0 },
-		.u  = { 1, 1 },
-	};
-	transferData[4] = (GameVertInput) {
-		.p  = { 1, -1, 0 },
-		.n  = { 0, 0, 0 },
-		.u  = { 0, 1 },
-	};
-	transferData[5] = (GameVertInput) {
-		.p  = { 0, 1, 0 },
-		.n  = { 0, 0, 0 },
 		.u  = { 0, 0 },
 	};
+
+	SDL_UnmapGPUTransferBuffer(device, transferBuffer);
+
+	// END VERTEX
+
+	// START INDEX
+
+	// Create the index buffer
+	SDL_GPUBuffer * index_buffer = SDL_CreateGPUBuffer(
+		device,
+		&(SDL_GPUBufferCreateInfo) {
+			.usage = SDL_GPU_BUFFERUSAGE_INDEX,
+			.size = sizeof(Uint16) * 6
+		}
+	);
+
+	// To get data into the index buffer, we have to use a transfer buffer
+	SDL_GPUTransferBuffer* transfer_index_buffer = SDL_CreateGPUTransferBuffer(
+		device,
+		&(SDL_GPUTransferBufferCreateInfo) {
+			.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+			.size = sizeof(Uint16) * 6
+		}
+	);
+
+	Uint16* index_data = SDL_MapGPUTransferBuffer(
+		device,
+		transfer_index_buffer,
+		false
+	);
+
+	index_data[0] = 0;
+	index_data[1] = 1;
+	index_data[2] = 2;
+	index_data[3] = 3;
+	index_data[4] = 1;
+	index_data[5] = 2;
+
+	SDL_UnmapGPUTransferBuffer(device, transfer_index_buffer);
+
+	// END INDEX
+
 	// Upload the transfer data to the vertex buffer
 	SDL_GPUCommandBuffer* uploadCmdBuf = SDL_AcquireGPUCommandBuffer(device);
 	SDL_GPUCopyPass* copyPass = SDL_BeginGPUCopyPass(uploadCmdBuf);
-
-	SDL_UploadToGPUBuffer(
-		copyPass,
-		&(SDL_GPUTransferBufferLocation) {
-			.transfer_buffer = transferBuffer,
-			.offset = 0
-		},
-		&(SDL_GPUBufferRegion) {
-			.buffer = vertex_buffer,
-			.offset = 0,
-			.size = sizeof(GameVertInput) * 6
-		},
-		false
-	);
 
 	SDL_UploadToGPUTexture(
 		copyPass,
@@ -340,10 +332,40 @@ int main() {
 		false
 	);
 
+	SDL_UploadToGPUBuffer(
+		copyPass,
+		&(SDL_GPUTransferBufferLocation) {
+			.transfer_buffer = transferBuffer,
+			.offset = 0
+		},
+		&(SDL_GPUBufferRegion) {
+			.buffer = vertex_buffer,
+			.offset = 0,
+			.size = sizeof(GameVertInput) * 4
+		},
+		false
+	);
+
+	SDL_UploadToGPUBuffer(
+		copyPass,
+		&(SDL_GPUTransferBufferLocation) {
+			.transfer_buffer = transfer_index_buffer,
+			.offset = 0
+		},
+		&(SDL_GPUBufferRegion) {
+			.buffer = index_buffer,
+			.offset = 0,
+			.size = sizeof(Uint16) * 6
+		},
+		false
+	);
+
+	SDL_DestroySurface(ravioli_surface);
 	SDL_EndGPUCopyPass(copyPass);
 	SDL_SubmitGPUCommandBuffer(uploadCmdBuf);
 	SDL_ReleaseGPUTransferBuffer(device, transferBuffer);
 	SDL_ReleaseGPUTransferBuffer(device, textureTransferBuffer);
+	SDL_ReleaseGPUTransferBuffer(device, transfer_index_buffer);
 
     bool quit = false;
 
@@ -421,16 +443,20 @@ int main() {
 
         SDL_BindGPUGraphicsPipeline(renderPass, pipeline);
         SDL_BindGPUVertexBuffers(renderPass, 0, &(SDL_GPUBufferBinding){ .buffer = vertex_buffer, .offset = 0 }, 1);
-
+		SDL_BindGPUIndexBuffer(renderPass, &(SDL_GPUBufferBinding){ .buffer = index_buffer, .offset = 0 }, SDL_GPU_INDEXELEMENTSIZE_16BIT);
+		
         // draw first triangle
 		SDL_PushGPUVertexUniformData(cmdbuf, 0, &loads[0], sizeof(Load));
 		SDL_BindGPUFragmentSamplers(renderPass, 0, &(SDL_GPUTextureSamplerBinding){ .texture = texture, .sampler = sampler }, 1);
-		SDL_DrawGPUPrimitives(renderPass, 3, 1, 0, 0);
+		SDL_DrawGPUIndexedPrimitives(renderPass, 3, 1, 0, 0, 0);
+		//SDL_DrawGPUPrimitives(renderPass, 3, 1, 0, 0);
 
         // draw second triangle
         SDL_PushGPUVertexUniformData(cmdbuf, 0, &loads[1], sizeof(Load));
-        // SDL_BindGPUFragmentSamplers(renderPass, 0, &(SDL_GPUTextureSamplerBinding){ .texture = texture, .sampler = sampler }, 1);
-		SDL_DrawGPUPrimitives(renderPass, 3, 1, 3, 0);
+   		SDL_DrawGPUIndexedPrimitives(renderPass, 3, 1, 3, 0, 0);
+
+		// SDL_BindGPUFragmentSamplers(renderPass, 0, &(SDL_GPUTextureSamplerBinding){ .texture = texture, .sampler = sampler }, 1);
+		// SDL_DrawGPUPrimitives(renderPass, 3, 1, 3, 0);
 
         SDL_EndGPURenderPass(renderPass);
 
