@@ -121,6 +121,15 @@ int main() {
 			.color_target_descriptions = (SDL_GPUColorTargetDescription[]){{
 				.format = SDL_GetGPUSwapchainTextureFormat(device, window),
 			}},
+			.has_depth_stencil_target = true,
+			.depth_stencil_format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT, // or whatever your
+		},
+		.depth_stencil_state = {
+			.enable_depth_test = 1,
+			.enable_depth_write = 1,
+			.enable_stencil_test = 0,
+			.compare_op = SDL_GPU_COMPAREOP_LESS,
+			.write_mask = 0xFF,
 		},
 		// This is set up to match the vertex shader layout!
 		.vertex_input_state = (SDL_GPUVertexInputState){
@@ -344,6 +353,25 @@ int main() {
 	SDL_ReleaseGPUTransferBuffer(device, textureTransferBuffer);
 	SDL_ReleaseGPUTransferBuffer(device, transfer_index_buffer);
 
+	SDL_GPUTexture* depthTexture = SDL_CreateGPUTexture(
+		device,
+		&(SDL_GPUTextureCreateInfo) {
+			.type = SDL_GPU_TEXTURETYPE_2D,
+			.format = SDL_GPU_TEXTUREFORMAT_D32_FLOAT,
+			.width = 800, // match your window size
+			.height = 450,
+			.layer_count_or_depth = 1,
+			.num_levels = 1,
+			.usage = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET
+		}
+	);
+
+	SDL_GPUDepthStencilTargetInfo depthTargetInfo = { 0 };
+	depthTargetInfo.texture = depthTexture;
+	depthTargetInfo.load_op = SDL_GPU_LOADOP_CLEAR;
+	depthTargetInfo.store_op = SDL_GPU_STOREOP_STORE;
+	depthTargetInfo.clear_depth = 1.0f;
+
     bool quit = false;
 
     while (!quit) {
@@ -383,11 +411,11 @@ int main() {
         colorTargetInfo.load_op = SDL_GPU_LOADOP_CLEAR;
         colorTargetInfo.store_op = SDL_GPU_STOREOP_STORE;
 
-        SDL_GPURenderPass* renderPass = SDL_BeginGPURenderPass(cmdbuf, &colorTargetInfo, 1, NULL);
+        SDL_GPURenderPass* renderPass = SDL_BeginGPURenderPass(cmdbuf, &colorTargetInfo, 1, &depthTargetInfo);
 
         typedef struct Load {
             float camera_pos[4];
-            float model_mat[16];
+            Matrix4x4 model_mat;
             float mouse[2];
         } Load;
 
@@ -399,21 +427,26 @@ int main() {
         static float mouse_x = 0.0f;
         // mouse_x += 0.01f;
 
+		static float mat_x = 0.0f;
+		mat_x += 0.01f;
+		static float mat_y = 0.0f;
+		mat_y += 0.02f;
+		static float mat_z = 0.0f;
+		mat_z += 0.03f;
+
         Load loads[2] = {
             {
             .camera_pos = {c[0], c[1], c[2], c[3]},
-            .model_mat = { 1.0f, 0.0f, 0.0f, 0.0f,
-                      0.0f, 1.0f, 0.0f, 0.0f,
-                      0.0f, 0.0f, 1.0f, 0.0f,
-                      0.0f, 0.0f, 0.0f, 1.0f },
+            .model_mat = Matrix4x4_Multiply(Matrix4x4_Multiply(Matrix4x4_Multiply(
+				Matrix4x4_Identity(), 
+				Matrix4x4_CreateRotationX(mat_x)
+			), Matrix4x4_CreateRotationY(mat_y)),
+			Matrix4x4_CreateRotationZ(mat_z)),
             .mouse = { mouse_x, 0 }
             },
             {
             .camera_pos = {c[0], c[1], c[2], c[3]},
-            .model_mat = { 2.0f, 0.0f, 0.0f, 0.0f,
-                      0.0f, 2.0f, 0.0f, 0.0f,
-                      0.0f, 0.0f, 2.0f, 0.0f,
-                      0.0f, 0.0f, -10.0f, 1.0f },
+            .model_mat = Matrix4x4_CreateTranslation(2, 0, 0),
             .mouse = { mouse_x, 0 }
             },
         };
@@ -429,7 +462,8 @@ int main() {
 		//SDL_DrawGPUPrimitives(renderPass, 3, 1, 0, 0);
 
         // draw second triangle
-        // SDL_PushGPUVertexUniformData(cmdbuf, 0, &loads[1], sizeof(Load));
+        SDL_PushGPUVertexUniformData(cmdbuf, 0, &loads[1], sizeof(Load));
+		SDL_DrawGPUIndexedPrimitives(renderPass, 36, 1, 0, 0, 0);
    		// SDL_DrawGPUIndexedPrimitives(renderPass, 36, 1, 3, 0, 0);
 
 		// SDL_BindGPUFragmentSamplers(renderPass, 0, &(SDL_GPUTextureSamplerBinding){ .texture = texture, .sampler = sampler }, 1);
